@@ -1,20 +1,20 @@
 <script setup lang="ts">
+
 interface BlockState{
   x: number
   y: number
   revealed?: boolean // 是否展示
-  mine?: boolean
-  flagged?: boolean
+  mine?: boolean // 炸弹
+  flagged?: boolean // flag
   adjacentMines: number
 }
-
-const WIDTH = 10
-const HEIGHT = 10
-const state = reactive(
+const WIDTH = 5
+const HEIGHT = 5
+const state = ref(
   Array.from({ length: HEIGHT }, (_, y) =>
     Array.from({ length: WIDTH },
       (_, x): BlockState => ({
-        x, y, adjacentMines: 0, revealed: false,
+        x, y, adjacentMines: 0, revealed: false, flagged: false,
       }),
     ),
   ),
@@ -51,12 +51,12 @@ const getSiblings = (block: BlockState) => {
     if (x2 < 0 || x2 >= WIDTH || y2 < 0 || y2 >= HEIGHT)
       return undefined
     // 如果踩到雷
-    return state[y2][x2]
-  }).filter(Boolean) as BlockState[]
+    return state.value[y2][x2]
+  }).filter(Boolean) as BlockState[] // 过滤Boolean
 }
 // 更新雷附近的数字
 const updateNumbers = () => {
-  state.forEach((row, y) => {
+  state.value.forEach((row, y) => {
     row.forEach((block, x) => {
       // console.log(x)
       // 如果是雷
@@ -71,7 +71,7 @@ const updateNumbers = () => {
 }
 // 生成雷
 const generateMines = (initial: BlockState) => {
-  for (const row of state) {
+  for (const row of state.value) {
     for (const block of row) {
       // 左右 上下两格不会有炸弹
       if (Math.abs(initial.x - block.x) < 1)
@@ -98,7 +98,7 @@ const expandZero = (block: BlockState) => {
 }
 let mineGenerated = false
 
-const dev = true
+const dev = false
 
 // 游戏开始
 const onClick = (block: BlockState) => {
@@ -111,16 +111,39 @@ const onClick = (block: BlockState) => {
   if (block.mine)
     alert('Boom!')
   expandZero(block)
+  checkGameState()
+}
+// 鼠标右键点击
+function rightClick(block: BlockState) {
+  if (block.revealed)
+    return
+  block.flagged = !block.flagged
+  checkGameState()
+}
+// watchEffect(checkGameState)
+// 判断游戏状态
+function checkGameState() {
+  if (!mineGenerated)
+    return
+
+  const blocks = state.value.flat()
+  if (blocks.every(block => block.revealed || block.flagged)) {
+    if (blocks.some(block => block.flagged && !block.mine))
+      alert('You cheat!')
+    else
+      alert('You win!')
+  }
 }
 
 // 样式
 const getBlockClass = (block: BlockState) => {
+  if (block.flagged)
+    return 'bg-gray-500/10'
   if (!block.revealed)
-    return 'bg-gray/10'
+    return 'bg-gray/10 hover:bg-gray-500/20'
 
   return block.mine ? 'bg-red-500/50' : numberColors[block.adjacentMines]
 }
-// generateMines()
 
 </script>
 
@@ -146,7 +169,11 @@ const getBlockClass = (block: BlockState) => {
           hover="bg-gray-400/10"
           :class="getBlockClass(block)"
           @click="onClick(block)"
+          @contextmenu.prevent="rightClick(block)"
         >
+          <template v-if="block.flagged">
+            <div i-mdi:flag text-red />
+          </template>
           <template v-if="block.revealed || dev">
             <div v-if="block.mine" i-mdi:mine />
             <div v-else>
